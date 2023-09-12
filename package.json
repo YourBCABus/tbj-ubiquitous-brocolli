@@ -1,0 +1,26 @@
+{
+  "name": "ubiquitous-brocolli",
+  "version": "0.0.1",
+  "description": "The Google Sheets integration backend for TableJet",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YourBCABus/tbj-ubiquitous-brocolli.git"
+  },
+  "author": "Yenowa",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/YourBCABus/tbj-ubiquitous-brocolli/issues"
+  },
+  "homepage": "https://github.com/YourBCABus/tbj-ubiquitous-brocolli#readme",
+  "dependencies": {
+    "@google-cloud/local-auth": "^3.0.0",
+    "@types/node": "^20.6.0",
+    "google-auth-library": "^9.0.0",
+    "googleapis": "^126.0.1",
+    "typescript": "^5.2.2"
+  }
+}
