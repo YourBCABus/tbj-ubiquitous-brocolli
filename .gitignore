@@ -1,5 +1,6 @@
-# Node Modules
+# Build artifacts
 node_modules
+dist
 
 # Eureka API Creds
 .env
