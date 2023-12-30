@@ -1,1 +1,9 @@
+# Node Modules
 node_modules
+
+# Eureka API Creds
+.env
+
+# Google Sheets API Creds
+credentials.json
+token.json

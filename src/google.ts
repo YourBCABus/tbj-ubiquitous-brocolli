@@ -80,7 +80,7 @@ export default class SheetContext {
             majorDimension: "ROWS",
             auth: this.auth,
             valueRenderOption: "UNFORMATTED_VALUE",
-            range: "Locations!A:ZZ"
+            range: "Teachers!A:ZZ"
         });
         const rawValues = response.data.values || [];
         return rawValues.map(row => row.map(String));
