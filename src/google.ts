@@ -7,6 +7,8 @@ import { cwd as currDir } from 'process';
 import { authenticate } from '@google-cloud/local-auth';
 import { google, sheets_v4 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
+import EurekaContext from 'eureka';
+import GraphQLQuery from 'actions/types';
 
 // If modifying these scopes, delete token.json.
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly'];
@@ -72,6 +74,16 @@ export default class SheetContext {
         const sheets = google.sheets({ version: 'v4', auth });
         const context = new SheetContext(auth, sheets, sheetId);
         return context;
+    }
+
+    public async updateSheetId(eureka: EurekaContext) {
+        const res = await eureka.execQuery<GraphQLQuery<{}, { id: string }>>(
+            "query GetId { id: currSpreadsheetId }",
+            "GetId",
+            {}
+        );
+
+        if (res.id) this.sheetId = res.id;
     }
 
     public async getSheetData(): Promise<string[][]> {

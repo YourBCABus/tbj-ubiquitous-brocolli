@@ -40,6 +40,9 @@ export default class BrocolliState {
         const start = Date.now();
         console.info(`Starting sync (${(start - this.#lastSync.getTime()) / 1000} seconds after last sync)`);
 
+        console.info("\nUpdating sheet id..");
+        await this.#sheetContext.updateSheetId(this.#eurekaContext);
+
 
         console.log("\n\nFrom sheet and eureka");
 
