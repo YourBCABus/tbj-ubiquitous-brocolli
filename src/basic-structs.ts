@@ -117,7 +117,7 @@ export abstract class AbsenceState {
     public static create(row: string[]): AbsenceState {
         const comments = row[COLS.COMMENTS];
 
-        if ((row[COLS.FULL_DAY] ?? 0).toLowerCase() === 'true') {
+        if ((row[COLS.FULL_DAY] ?? "").toLowerCase() === 'true') {
             return new AbsentFullDay(comments);
         }
 
@@ -137,7 +137,7 @@ export abstract class AbsenceState {
         ] as const;
 
         for (const [col, period] of pairs) {
-            if ((row[col] ?? 0).toLowerCase() === 'true') {
+            if ((row[col] ?? "").toLowerCase() === 'true') {
                 periods.add(period);
             }
         }
