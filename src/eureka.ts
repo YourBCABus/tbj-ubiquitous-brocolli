@@ -68,6 +68,9 @@ type GetTeachersQuery = GraphQLQuery<{}, {
     teachers: Teacher<"id" | "name", never, never, "honorific" | "first" | "last">[];
 }>;
 
-export const getTeachers = async (ctx: EurekaContext) => {
+export type GetTeachersResult = Awaited<ReturnType<GetTeachersQuery>>["teachers"];
+
+export const getTeachers = async (ctx: EurekaContext): Promise<GetTeachersResult> => {
     return (await ctx.execQuery<GetTeachersQuery>(GET_TEACHERS_QUERY, 'GetTeachers', {})).teachers;
 };
+

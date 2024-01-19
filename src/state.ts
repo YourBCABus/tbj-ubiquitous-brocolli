@@ -1,6 +1,6 @@
 import syncAction, { ActionType } from "./actions";
 import TeacherEntry from "./basic-structs";
-import EurekaContext, { getTeachers } from "./eureka";
+import EurekaContext, { GetTeachersResult, getTeachers } from "./eureka";
 import SheetContext from "./google";
 import { SKIP_ROWS } from "./rowlookup";
 
@@ -36,28 +36,102 @@ export default class BrocolliState {
         return new BrocolliState(eurekaContext, sheetContext, new Map());
     }
 
-    public async sync() {
-        const start = Date.now();
-        console.info(`Starting sync (${(start - this.#lastSync.getTime()) / 1000} seconds after last sync)`);
-
-        console.info("\nUpdating sheet id..");
-        await this.#sheetContext.updateSheetId(this.#eurekaContext);
-
-
-        console.log("\n\nFrom sheet and eureka");
+    private async pullData(prefix: string): Promise<{ sheetData: string[][], eurekaTeachers: GetTeachersResult }> {
+        console.log(prefix + "Pulling data from sheet and eureka");
 
         const sheetData = await this.#sheetContext.getSheetData();
-        console.info("Got sheet data");
-
-        const sheetFetchTime = Date.now();
+        console.info(prefix + "    Got sheet data");
 
 
         const eurekaTeachers = await getTeachers(this.#eurekaContext);
-        console.info(`Got ${eurekaTeachers.length} teachers from Improved Eureka`);
+        console.info(prefix + `    Got ${eurekaTeachers.length} teachers from Improved Eureka`);
+
+        return { sheetData, eurekaTeachers };
+    }
+
+    private async doNonCreate(prefix: string, actions: [ActionType, TeacherEntry][]) {
+        console.info(`${prefix}Performing ${actions.length} non-create actions`);
+        const actionPromises = actions.map(async ([actionType, teacher]) => [
+            await syncAction(this.#eurekaContext, actionType, teacher),
+            [actionType, teacher],
+        ]);
+        const actionResults = await Promise.allSettled(actionPromises);
+        console.info(`${prefix}    Performed ${actionResults.length} non-create actions`);
+
+        return actionResults;
+    }
+    private async doCreate(prefix: string, newTeacherList: TeacherEntry[]) {
+        console.info(`${prefix}Creating ${newTeacherList.length} new teachers`);
+        const createPromises = newTeacherList.map(async teacher => {
+            const teacherResult = await syncAction(this.#eurekaContext, ActionType.CREATE_TEACHER, teacher);
+            this.#teachers.set(teacher.id!, teacher);
+            [
+                teacherResult,
+                [ActionType.CREATE_TEACHER, teacher],
+            ]
+        });
+        const createResults = await Promise.allSettled(createPromises);
+        console.info(`${prefix}    Created ${createResults.length} new teachers`);
+
+        return createResults;
+    }
+
+    private async logFailedActions(
+        prefix: string,
+        nonCreate: {
+            results: PromiseSettledResult<unknown>[],
+            actions: [ActionType, TeacherEntry][],
+        },
+        create: {
+            results: PromiseSettledResult<unknown>[],
+            newTeachers: TeacherEntry[],
+        }
+    ) {
+        const failedActions = nonCreate.results.flatMap((result, idx) => {
+            if (result.status === 'rejected') return [nonCreate.actions[idx]]
+            else return [];
+        });
+        const failedCreates = create.results.flatMap((result, idx) => {
+            if (result.status === 'rejected') return [[result.reason, create.newTeachers[idx]] as const];
+            else return [];
+        });
 
 
+        if (failedActions.length > 0) {
+            console.error(prefix + "Some non-create actions failed:");
+            for (const [action, teacher] of failedActions) {
+                console.error(`${prefix}    Action failed: ${action} for`, teacher);
+            }
+        }
 
-        console.log("\n\nInternal updated and resolution");
+        if (failedCreates.length > 0) {
+            console.error(prefix + "Some teachers failed to create:");
+            for (const [result, teacher] of failedCreates) {
+                console.error(prefix + "    Create failed for", teacher, ':', result);
+            }
+        }
+    }
+
+    public async sync() {
+        const INDENT = "    ";
+        const INDENT_2 = INDENT + INDENT;
+        const INDENT_3 = INDENT_2 + INDENT;
+
+        const start = Date.now();
+        console.info(`Starting sync (${(start - this.#lastSync.getTime()) / 1000} seconds after last sync)`);
+
+        console.info();
+        console.info(INDENT + "Updating sheet id..");
+        await this.#sheetContext.updateSheetId(this.#eurekaContext);
+
+
+        console.log("\n");
+        const { sheetData, eurekaTeachers } = await this.pullData(INDENT);
+        const dataFetchTime = Date.now();
+
+
+        console.info('\n');
+        console.log(INDENT + "Internal updates and resolution");
 
         const newTeachers: Set<TeacherEntry> = new Set();
         const pendingTeachers: Set<Id> = new Set();
@@ -65,7 +139,7 @@ export default class BrocolliState {
 
         const actions: [ActionType, TeacherEntry][] = [];
 
-        console.info("Performing easy teacher updates");
+        console.info(INDENT_2 + "Performing easy teacher updates");
         for (let rowIdx = SKIP_ROWS; rowIdx < sheetData.length; rowIdx++) {
             const row = sheetData[rowIdx];
             const rowIsEmpty = row.slice(0, 3).every(cell => !cell);
@@ -89,10 +163,10 @@ export default class BrocolliState {
                 pendingTeachers.add(id);
             }
         }
-        console.info(`Performed ${this.#teachers.size - pendingTeachers.size} easy teacher updates`);
+        console.info(`${INDENT_3}Performed ${this.#teachers.size - pendingTeachers.size} easy teacher updates`);
 
         let staleTeachers = 0;
-        console.info("Performing confusing teacher updates");
+        console.info(INDENT_2 + "Performing confusing teacher updates");
         for (const teacher of pendingTeachers) {
             const thisTeacher = this.#teachers.get(teacher);
             if (!thisTeacher) throw new Error('Teacher in pendingTeachers not in map');
@@ -118,16 +192,16 @@ export default class BrocolliState {
 
             actions.push(...updateActions);
         }
-        console.info(`Performed confusing teacher updates, ${staleTeachers} stale teachers`);
+        console.info(`${INDENT_3}Performed confusing teacher updates, ${staleTeachers} stale teachers`);
 
 
-        console.info("Creating and matching 'new' teachers");
+        console.info(INDENT_2 + "Creating and matching 'new' teachers");
         for (const rowIdx of pendingRows) {
             const row = sheetData[rowIdx];
             const newTeacher = TeacherEntry.create(row, rowIdx);
             if (!newTeacher) {
-                console.warn(`Failed to create teacher from row`, row);
-                console.warn(`Skipping row ${rowIdx}`);
+                console.warn(INDENT_3 + `Failed to create teacher from row`, row);
+                console.warn(INDENT_3 + `Skipping row ${rowIdx}`);
                 pendingRows.delete(rowIdx);
                 continue;
             }
@@ -140,7 +214,7 @@ export default class BrocolliState {
                 return firstNameMatch && lastNameMatch && honorificMatch;
             });
             if (matchingEurekaTeacher) {
-                console.log(`Found matching teacher ${newTeacher.formattedName}`);
+                console.info(INDENT_3 + `Found matching teacher ${newTeacher.formattedName}`);
                 newTeacher.id = matchingEurekaTeacher.id;
 
                 actions.push([ActionType.CHANGE_TEACHER_ABSENCE, newTeacher]);
@@ -148,66 +222,36 @@ export default class BrocolliState {
                 continue;
             }
 
-            console.log(`Created teacher ${newTeacher.formattedName}`);
+            console.info(INDENT_3 + `Created teacher ${newTeacher.formattedName}`);
             newTeachers.add(newTeacher);
         }
-        console.info(`Created ${newTeachers.size} 'new' teachers and matched ${pendingRows.size - newTeachers.size} teachers`);
+        console.info(INDENT_3 + `Created ${newTeachers.size} 'new' teachers and matched ${pendingRows.size - newTeachers.size} teachers`);
 
         const diffResolveTime = Date.now();
 
+        console.info('\n');
+        console.log(INDENT + "To Eureka");
+        const actionResults = await this.doNonCreate(INDENT_2, actions);
 
-        console.log("\n\nTo Eureka");
-        console.info(`Performing ${actions.length} non-create actions`);
         const newTeacherList = [...newTeachers.values()];
-        const actionPromises = actions.map(async ([actionType, teacher]) => [
-            await syncAction(this.#eurekaContext, actionType, teacher),
-            [actionType, teacher],
-        ]);
-        const actionResults = await Promise.allSettled(actionPromises);
-        console.info(`Performed ${actionResults.length} actions`);
+        const createResults = await this.doCreate(INDENT_2, newTeacherList);
 
-        const actionResolveTime = Date.now();
-
-        console.info(`Creating ${newTeacherList.length} new teachers`);
-        const createPromises = newTeacherList.map(async teacher => {
-            const teacherResult = await syncAction(this.#eurekaContext, ActionType.CREATE_TEACHER, teacher);
-            this.#teachers.set(teacher.id!, teacher);
-            [
-                teacherResult,
-                [ActionType.CREATE_TEACHER, teacher],
-            ]
-        });
-        const createResults = await Promise.allSettled(createPromises);
-        console.info(`Created ${createResults.length} new teachers`);
-
-        const failedActions = actionResults.flatMap((result, idx) => result.status === 'rejected' ? [actions[idx]] : []);
-        const failedCreates = createResults.flatMap((result, idx) => result.status === 'rejected' ? [[result.reason, newTeacherList[idx]] as const] : []);
-
-
-        if (failedActions.length > 0) {
-            for (const [action, teacher] of failedActions) {
-                console.error(`Action failed: ${action} for`, teacher);
-            }
-        }
-
-        if (failedCreates.length > 0) {
-            for (const [result, teacher] of failedCreates) {
-                console.error("Create failed for", teacher, ':', result);
-            }
-        }
+        this.logFailedActions(
+            INDENT_2,
+            { results: actionResults, actions },
+            { results: createResults, newTeachers: newTeacherList },
+        );
 
         const end = Date.now();
 
-        const sheetFetchDuration = sheetFetchTime - start;
-        const diffResolveDuration = diffResolveTime - sheetFetchTime;
-        const actionResolveDuration = actionResolveTime - diffResolveTime;
-        const createDuration = end - actionResolveTime;
-        const eurekaSyncDuration = actionResolveDuration + createDuration;
+        const sheetFetchDuration = dataFetchTime - start;
+        const diffResolveDuration = diffResolveTime - dataFetchTime;
+        const eurekaSyncDuration = end - diffResolveTime;
 
         const totalDuration = end - start;
 
         console.log("\n\nSummary");
-        console.info(`Sync complete in ${totalDuration}ms (${sheetFetchDuration}ms sheet fetch, ${diffResolveDuration}ms diff resolve, ${eurekaSyncDuration}ms eureka sync)`);
+        console.info(`Sync complete in ${totalDuration}ms (${sheetFetchDuration}ms data fetch, ${diffResolveDuration}ms diff resolve, ${eurekaSyncDuration}ms eureka sync)`);
 
         this.#lastSync = new Date(end);
     }

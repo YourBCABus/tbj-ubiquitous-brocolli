@@ -5,21 +5,26 @@ const COLS = {
     FIRST_NAME: ALPHABET.indexOf('B'),
     LAST_NAME: ALPHABET.indexOf('C'),
 
-    COMMENTS: ALPHABET.indexOf('E'),
+    REPORT_TO: ALPHABET.indexOf('E'),
 
     FULL_DAY: ALPHABET.indexOf('G'),
 
+    PARTIAL: {
+        AM: ALPHABET.indexOf('I'),
+        PM: ALPHABET.indexOf('J'),
+    },
+
     PERIOD: {
-        P1: ALPHABET.indexOf('J'),
-        IGS: ALPHABET.indexOf('K'),
-        P2: ALPHABET.indexOf('L'),
-        P3: ALPHABET.indexOf('M'),
-        P4: ALPHABET.indexOf('N'),
-        P5: ALPHABET.indexOf('O'),
-        P6: ALPHABET.indexOf('P'),
-        P7: ALPHABET.indexOf('Q'),
-        P8: ALPHABET.indexOf('R'),
-        P9: ALPHABET.indexOf('S'),
+        P1: ALPHABET.indexOf('M'),
+        IGS: ALPHABET.indexOf('N'),
+        P2: ALPHABET.indexOf('O'),
+        P3: ALPHABET.indexOf('P'),
+        P4: ALPHABET.indexOf('Q'),
+        P5: ALPHABET.indexOf('R'),
+        P6: ALPHABET.indexOf('S'),
+        P7: ALPHABET.indexOf('T'),
+        P8: ALPHABET.indexOf('U'),
+        P9: ALPHABET.indexOf('V'),
     }
 
 };

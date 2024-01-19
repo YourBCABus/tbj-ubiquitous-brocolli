@@ -9,7 +9,7 @@ export enum ActionType {
     CREATE_TEACHER = 'CREATE_TEACHER',
     CHANGE_TEACHER_NAME = 'CHANGE_TEACHER_NAME',
     CHANGE_TEACHER_ABSENCE = 'CHANGE_TEACHER_ABSENCE',
-    CHANGE_TEACHER_COMMENT = 'CHANGE_TEACHER_COMMENT',
+    // CHANGE_TEACHER_COMMENT = 'CHANGE_TEACHER_COMMENT',
 }
 
 const syncAction = async (ctx: EurekaContext, action: ActionType, teacher: TeacherEntry) => {
@@ -31,9 +31,9 @@ const syncAction = async (ctx: EurekaContext, action: ActionType, teacher: Teach
             }
             return [action, teacher];
 
-        case ActionType.CHANGE_TEACHER_COMMENT:
-            console.warn("Teacher comment change not implemented");
-            return [action, teacher];
+        // case ActionType.CHANGE_TEACHER_COMMENT:
+        //     console.warn("Teacher comment change not implemented");
+        //     return [action, teacher];
 
     }
 

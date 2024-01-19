@@ -115,14 +115,23 @@ export abstract class AbsenceState {
     abstract get isFullyAbsent(): boolean;
 
     public static create(row: string[]): AbsenceState {
-        const comments = row[COLS.COMMENTS];
+        // const comments = row[COLS.COMMENTS];
+        const comments = "";
+        
 
-        if ((row[COLS.FULL_DAY] ?? "").toLowerCase() === 'true') {
+        const checked = (idx: number) => (row[idx] ?? "").toLowerCase() === 'true';
+
+        // If the full day column is checked, exit early with an AbsentFullDay
+        // status.
+        if (checked(COLS.FULL_DAY)) {
             return new AbsentFullDay(comments);
         }
 
+
+        // Individual period selection
         const periods = new Set<Period>();
 
+        // Handle individual checked periods
         const pairs = [
             [COLS.PERIOD.P1, Period.P1],
             [COLS.PERIOD.IGS, Period.IGS],
@@ -137,11 +146,24 @@ export abstract class AbsenceState {
         ] as const;
 
         for (const [col, period] of pairs) {
-            if ((row[col] ?? "").toLowerCase() === 'true') {
+            if (checked(col)) {
                 periods.add(period);
             }
         }
 
+        // Handle AM/PM period chunks
+        const AM_PERIODS = [Period.P1, Period.IGS, Period.P2, Period.P3, Period.P4];
+        const PM_PERIODS = [Period.P5, Period.P6, Period.P7, Period.P8, Period.P9];
+
+        if (checked(COLS.PARTIAL.AM)) {
+            for (const period of AM_PERIODS) periods.add(period);
+        }
+        if (checked(COLS.PARTIAL.PM)) {
+            for (const period of PM_PERIODS) periods.add(period);
+        }
+
+        // If no periods are absent, teacher is present (otherwise teacher is
+        // partially absent)
         if (periods.size === 0) {
             return new Present(comments);
         } else {
@@ -152,9 +174,9 @@ export abstract class AbsenceState {
     public static diff(prev: AbsenceState, curr: AbsenceState): ActionType[] {
         const actions: ActionType[] = [];
 
-        if (prev.#comments !== curr.#comments) {
-            actions.push(ActionType.CHANGE_TEACHER_COMMENT);
-        }
+        // if (prev.#comments !== curr.#comments) {
+            // actions.push(ActionType.CHANGE_TEACHER_COMMENT);
+        // }
 
         const prevIsFullDay = prev instanceof AbsentFullDay;
         const currIsFullDay = curr instanceof AbsentFullDay;
