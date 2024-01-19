@@ -89,9 +89,9 @@ export default class TeacherEntry {
 
         let score = 0;
 
-        if (firstName === this.#firstName) score += 1;
-        if (lastName === this.#lastName) score += 3;
-        if (honorific === this.#honorific) score += 1.1;
+        if (firstName === this.#firstName) score += 2;
+        if (lastName === this.#lastName) score += 2;
+        if (honorific === this.#honorific) score += 1;
 
         return score;
     }
@@ -100,7 +100,7 @@ export default class TeacherEntry {
         return this.rowMatchScore(row) >= 4;
     }
     public rowMatchesLax(row: string[]): boolean {
-        return this.rowMatchScore(row) >= 1;
+        return this.rowMatchScore(row) >= 3;
     }
 }
 
