@@ -74,3 +74,25 @@ export const getTeachers = async (ctx: EurekaContext): Promise<GetTeachersResult
     return (await ctx.execQuery<GetTeachersQuery>(GET_TEACHERS_QUERY, 'GetTeachers', {})).teachers;
 };
 
+
+
+
+const SET_GET_REPORT_TO_QUERY = `
+mutation SetReportTo {
+    setReportTo(reportTo: "2nd Floor Caf")
+}
+query GetReportTo {
+  reportTo:currReportTo
+}
+`;
+
+type SetReportToMutation = GraphQLQuery<{ reportTo: string }, {}>;
+type GetReportToQuery = GraphQLQuery<{}, { reportTo: string }>;
+
+export const setReportTo = async (ctx: EurekaContext, reportTo: string): Promise<void> => {
+    await ctx.execQuery<SetReportToMutation>(SET_GET_REPORT_TO_QUERY, 'SetReportTo', { reportTo });
+};
+
+export const getReportTo = async (ctx: EurekaContext): Promise<string> => {
+    return (await ctx.execQuery<GetReportToQuery>(SET_GET_REPORT_TO_QUERY, 'GetReportTo', {})).reportTo;
+}

@@ -1,6 +1,6 @@
 import syncAction, { ActionType } from "./actions";
 import TeacherEntry from "./basic-structs";
-import EurekaContext, { GetTeachersResult, getTeachers } from "./eureka";
+import EurekaContext, { GetTeachersResult, getReportTo, getTeachers, setReportTo } from "./eureka";
 import SheetContext from "./google";
 import { SKIP_ROWS } from "./rowlookup";
 
@@ -22,8 +22,7 @@ export default class BrocolliState {
         this.#lastSync = new Date(0);
     }
 
-    public static async create(sheetId: string): Promise<BrocolliState> {
-        const sheetContext = await SheetContext.create(sheetId);
+    public static async create(): Promise<BrocolliState> {
 
         const CLIENT_ID = process.env.EUREKA_CLIENT_ID;
         const CLIENT_SECRET = process.env.EUREKA_CLIENT_SECRET;
@@ -33,10 +32,13 @@ export default class BrocolliState {
 
         const eurekaContext = new EurekaContext(CLIENT_ID, CLIENT_SECRET, URL);
 
+        const sheetContext = await SheetContext.create("");
+        await sheetContext.updateSheetId(eurekaContext);
+
         return new BrocolliState(eurekaContext, sheetContext, new Map());
     }
 
-    private async pullData(prefix: string): Promise<{ sheetData: string[][], eurekaTeachers: GetTeachersResult }> {
+    private async pullData(prefix: string): Promise<{ sheetData: string[][], eurekaTeachers: GetTeachersResult, eurekaReportTo: string }> {
         console.log(prefix + "Pulling data from sheet and eureka");
 
         const sheetData = await this.#sheetContext.getSheetData();
@@ -46,7 +48,10 @@ export default class BrocolliState {
         const eurekaTeachers = await getTeachers(this.#eurekaContext);
         console.info(prefix + `    Got ${eurekaTeachers.length} teachers from Improved Eureka`);
 
-        return { sheetData, eurekaTeachers };
+        const eurekaReportTo = await getReportTo(this.#eurekaContext);
+        console.info(prefix + `    Got reportTo \`${eurekaReportTo}\` from Improved Eureka`);
+
+        return { sheetData, eurekaTeachers, eurekaReportTo };
     }
 
     private async doNonCreate(prefix: string, actions: [ActionType, TeacherEntry][]) {
@@ -126,7 +131,7 @@ export default class BrocolliState {
 
 
         console.log("\n");
-        const { sheetData, eurekaTeachers } = await this.pullData(INDENT);
+        const { sheetData, eurekaTeachers, eurekaReportTo } = await this.pullData(INDENT);
         const dataFetchTime = Date.now();
 
 
@@ -193,6 +198,18 @@ export default class BrocolliState {
             actions.push(...updateActions);
         }
         console.info(`${INDENT_3}Performed confusing teacher updates, ${staleTeachers} stale teachers`);
+
+        
+        console.info(INDENT_2 + "Updating reportTo if neccessary");
+        const sheetReportTo = sheetData[2][4]?.trim();
+        if (sheetReportTo !== eurekaReportTo && sheetReportTo) {
+            console.info(INDENT_3 + "reportTo change detected");
+            console.info(INDENT_3 + `Updating reportTo from \`${eurekaReportTo}\` to \`${sheetReportTo}\``);
+            setReportTo(this.#eurekaContext, sheetReportTo);
+        } else {
+            console.info(INDENT_3 + "reportTo unchanged");
+        }
+        const reportToTime = Date.now();
 
 
         console.info(INDENT_2 + "Creating and matching 'new' teachers");
