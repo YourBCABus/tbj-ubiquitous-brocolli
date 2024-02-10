@@ -32,7 +32,7 @@ export default class TeacherEntry {
     public static create(row: string[], rowIdx: number): TeacherEntry | null {
         const firstName = row[COLS.FIRST_NAME].trim();
         const lastName = row[COLS.LAST_NAME].trim();
-        const honorific = row[COLS.HONORIFIC].trim().replace(/\.$/, '');
+        const honorific = row[COLS.HONORIFIC].trim().replace(/\.$/, '').toLowerCase();
 
         if (!honorific || !lastName) return null;
 
@@ -46,7 +46,7 @@ export default class TeacherEntry {
 
         const firstName = row[COLS.FIRST_NAME].trim();
         const lastName = row[COLS.LAST_NAME].trim();
-        const honorific = row[COLS.HONORIFIC].trim().replace(/\.$/, '');
+        const honorific = row[COLS.HONORIFIC].trim().replace('.', '');
 
         
         if (firstName !== this.#firstName || lastName !== this.#lastName || honorific !== this.#honorific) {
@@ -85,7 +85,7 @@ export default class TeacherEntry {
     public rowMatchScore(row: string[]): number {
         const firstName = row[COLS.FIRST_NAME];
         const lastName = row[COLS.LAST_NAME];
-        const honorific = row[COLS.HONORIFIC].replace(/\.$/, '');
+        const honorific = row[COLS.HONORIFIC].trim().replace('.', '').toLowerCase();
 
         let score = 0;
 

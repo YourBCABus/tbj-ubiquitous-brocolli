@@ -47,8 +47,11 @@ const mxPronouns: GraphQlPronounSet = {
     grammPlu: true,
 };
 
+const msMatches = ['ms', 'mrs', 'ms dr', 'mrs dr'];
+const mrMatches = ['mr', 'dr', 'mr dr'];
+
 const createTeacher = async (ctx: EurekaContext, teacher: TeacherEntry): Promise<void> => {
-    const pronouns = teacher.honorific === 'Ms' ? msPronouns : teacher.honorific === 'Mr' ? mrPronouns : mxPronouns;
+    const pronouns = msMatches ? msPronouns : mrMatches ? mrPronouns : mxPronouns;
     const variables = {
         name: {
             honorific: teacher.honorific,
