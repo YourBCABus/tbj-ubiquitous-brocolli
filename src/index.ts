@@ -1,5 +1,4 @@
 import { configDotenv } from "dotenv";
-import SheetContext from "./google";
 import BrocolliState from "./state";
 
 const main = async () => {
