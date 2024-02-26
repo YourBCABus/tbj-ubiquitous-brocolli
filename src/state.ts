@@ -118,158 +118,162 @@ export default class BrocolliState {
     }
 
     public async sync() {
-        const INDENT = "    ";
-        const INDENT_2 = INDENT + INDENT;
-        const INDENT_3 = INDENT_2 + INDENT;
-
-        const start = Date.now();
-        console.info(`Starting sync (${(start - this.#lastSync.getTime()) / 1000} seconds after last sync)`);
-
-        console.info();
-        console.info(INDENT + "Updating sheet id..");
-        await this.#sheetContext.updateSheetId(this.#eurekaContext);
-
-
-        console.log("\n");
-        const { sheetData, eurekaTeachers, eurekaReportTo } = await this.pullData(INDENT);
-        const dataFetchTime = Date.now();
-
-
-        console.info('\n');
-        console.log(INDENT + "Internal updates and resolution");
-
-        const newTeachers: Set<TeacherEntry> = new Set();
-        const pendingTeachers: Set<Id> = new Set();
-        const pendingRows: Set<number> = new Set();
-
-        const actions: [ActionType, TeacherEntry][] = [];
-
-        console.info(INDENT_2 + "Performing easy teacher updates");
-        for (let rowIdx = SKIP_ROWS; rowIdx < sheetData.length; rowIdx++) {
-            const row = sheetData[rowIdx];
-            const rowIsEmpty = row.slice(0, 3).every(cell => !cell);
-            if (rowIsEmpty) continue;
-
-            const homeTeacher = [...this.#teachers.values()].find(t => t.home.row === rowIdx);
-
-            if (!homeTeacher) {
-                pendingRows.add(rowIdx);
-                continue;
+        try {
+            const INDENT = "    ";
+            const INDENT_2 = INDENT + INDENT;
+            const INDENT_3 = INDENT_2 + INDENT;
+    
+            const start = Date.now();
+            console.info(`Starting sync (${(start - this.#lastSync.getTime()) / 1000} seconds after last sync)`);
+    
+            console.info();
+            console.info(INDENT + "Updating sheet id..");
+            await this.#sheetContext.updateSheetId(this.#eurekaContext);
+    
+    
+            console.log("\n");
+            const { sheetData, eurekaTeachers, eurekaReportTo } = await this.pullData(INDENT);
+            const dataFetchTime = Date.now();
+    
+    
+            console.info('\n');
+            console.log(INDENT + "Internal updates and resolution");
+    
+            const newTeachers: Set<TeacherEntry> = new Set();
+            const pendingTeachers: Set<Id> = new Set();
+            const pendingRows: Set<number> = new Set();
+    
+            const actions: [ActionType, TeacherEntry][] = [];
+    
+            console.info(INDENT_2 + "Performing easy teacher updates");
+            for (let rowIdx = SKIP_ROWS; rowIdx < sheetData.length; rowIdx++) {
+                const row = sheetData[rowIdx];
+                const rowIsEmpty = row.slice(0, 3).every(cell => !cell);
+                if (rowIsEmpty) continue;
+    
+                const homeTeacher = [...this.#teachers.values()].find(t => t.home.row === rowIdx);
+    
+                if (!homeTeacher) {
+                    pendingRows.add(rowIdx);
+                    continue;
+                }
+                if (homeTeacher.rowMatchesLax(row)) {
+                    const updateActions = homeTeacher.update(row).map(actionType => [actionType, homeTeacher] as [ActionType, TeacherEntry]);
+                    actions.push(...updateActions);
+                    continue;
+                } else {
+                    const id = homeTeacher.id;
+                    if (!id) throw new Error('Teacher in map has no ID');
+    
+                    pendingRows.add(rowIdx);
+                    pendingTeachers.add(id);
+                }
             }
-            if (homeTeacher.rowMatchesLax(row)) {
-                const updateActions = homeTeacher.update(row).map(actionType => [actionType, homeTeacher] as [ActionType, TeacherEntry]);
+            console.info(`${INDENT_3}Performed ${this.#teachers.size - pendingTeachers.size} easy teacher updates`);
+    
+            let staleTeachers = 0;
+            console.info(INDENT_2 + "Performing confusing teacher updates");
+            for (const teacher of pendingTeachers) {
+                const thisTeacher = this.#teachers.get(teacher);
+                if (!thisTeacher) throw new Error('Teacher in pendingTeachers not in map');
+    
+                const rowRankings = [...pendingRows.values()]
+                    .map(rowIdx => [rowIdx, thisTeacher.rowMatchScore(sheetData[rowIdx])] as const) // Get the match score for the relevant row
+                    .sort(([_, a], [__, b]) => b - a) // Sort descending by match score
+                    .map(([rowIdx, _]) => rowIdx); // Get the row index
+    
+                
+                if (rowRankings.length === 0) {
+                    staleTeachers++;
+                    continue;
+                }
+    
+                thisTeacher.home.row = rowRankings[0];
+                pendingRows.delete(rowRankings[0]);
+                pendingTeachers.delete(teacher);
+    
+                const updateActions = thisTeacher
+                    .update(sheetData[thisTeacher.home.row])
+                    .map(actionType => [actionType, thisTeacher] as [ActionType, TeacherEntry]);
+    
                 actions.push(...updateActions);
-                continue;
-            } else {
-                const id = homeTeacher.id;
-                if (!id) throw new Error('Teacher in map has no ID');
-
-                pendingRows.add(rowIdx);
-                pendingTeachers.add(id);
             }
-        }
-        console.info(`${INDENT_3}Performed ${this.#teachers.size - pendingTeachers.size} easy teacher updates`);
-
-        let staleTeachers = 0;
-        console.info(INDENT_2 + "Performing confusing teacher updates");
-        for (const teacher of pendingTeachers) {
-            const thisTeacher = this.#teachers.get(teacher);
-            if (!thisTeacher) throw new Error('Teacher in pendingTeachers not in map');
-
-            const rowRankings = [...pendingRows.values()]
-                .map(rowIdx => [rowIdx, thisTeacher.rowMatchScore(sheetData[rowIdx])] as const) // Get the match score for the relevant row
-                .sort(([_, a], [__, b]) => b - a) // Sort descending by match score
-                .map(([rowIdx, _]) => rowIdx); // Get the row index
-
+            console.info(`${INDENT_3}Performed confusing teacher updates, ${staleTeachers} stale teachers`);
+    
             
-            if (rowRankings.length === 0) {
-                staleTeachers++;
-                continue;
+            console.info(INDENT_2 + "Updating reportTo if neccessary");
+            const sheetReportTo = sheetData[2][4]?.trim();
+            if (sheetReportTo !== eurekaReportTo && sheetReportTo) {
+                console.info(INDENT_3 + "reportTo change detected");
+                console.info(INDENT_3 + `Updating reportTo from \`${eurekaReportTo}\` to \`${sheetReportTo}\``);
+                setReportTo(this.#eurekaContext, sheetReportTo);
+            } else {
+                console.info(INDENT_3 + "reportTo unchanged");
             }
-
-            thisTeacher.home.row = rowRankings[0];
-            pendingRows.delete(rowRankings[0]);
-            pendingTeachers.delete(teacher);
-
-            const updateActions = thisTeacher
-                .update(sheetData[thisTeacher.home.row])
-                .map(actionType => [actionType, thisTeacher] as [ActionType, TeacherEntry]);
-
-            actions.push(...updateActions);
-        }
-        console.info(`${INDENT_3}Performed confusing teacher updates, ${staleTeachers} stale teachers`);
-
-        
-        console.info(INDENT_2 + "Updating reportTo if neccessary");
-        const sheetReportTo = sheetData[2][4]?.trim();
-        if (sheetReportTo !== eurekaReportTo && sheetReportTo) {
-            console.info(INDENT_3 + "reportTo change detected");
-            console.info(INDENT_3 + `Updating reportTo from \`${eurekaReportTo}\` to \`${sheetReportTo}\``);
-            setReportTo(this.#eurekaContext, sheetReportTo);
-        } else {
-            console.info(INDENT_3 + "reportTo unchanged");
-        }
-        const reportToTime = Date.now();
-
-
-        console.info(INDENT_2 + "Creating and matching 'new' teachers");
-        for (const rowIdx of pendingRows) {
-            const row = sheetData[rowIdx];
-            const newTeacher = TeacherEntry.create(row, rowIdx);
-            if (!newTeacher) {
-                console.warn(INDENT_3 + `Failed to create teacher from row`, row);
-                console.warn(INDENT_3 + `Skipping row ${rowIdx}`);
-                pendingRows.delete(rowIdx);
-                continue;
+            const reportToTime = Date.now();
+    
+    
+            console.info(INDENT_2 + "Creating and matching 'new' teachers");
+            for (const rowIdx of pendingRows) {
+                const row = sheetData[rowIdx];
+                const newTeacher = TeacherEntry.create(row, rowIdx);
+                if (!newTeacher) {
+                    console.warn(INDENT_3 + `Failed to create teacher from row`, row);
+                    console.warn(INDENT_3 + `Skipping row ${rowIdx}`);
+                    pendingRows.delete(rowIdx);
+                    continue;
+                }
+    
+                const matchingEurekaTeacher = eurekaTeachers.find(t => {
+                    const firstNameMatch = t.name.first === newTeacher.firstName;
+                    const lastNameMatch = t.name.last === newTeacher.lastName;
+                    const honorificMatch = t.name.honorific.toLowerCase().replace('.', '') === newTeacher.honorific.toLowerCase().replace('.', '');
+    
+                    return firstNameMatch && lastNameMatch && honorificMatch;
+                });
+                if (matchingEurekaTeacher) {
+                    console.info(INDENT_3 + `Found matching teacher ${newTeacher.formattedName}`);
+                    newTeacher.id = matchingEurekaTeacher.id;
+    
+                    actions.push([ActionType.CHANGE_TEACHER_ABSENCE, newTeacher]);
+                    this.#teachers.set(matchingEurekaTeacher.id, newTeacher);
+                    continue;
+                }
+    
+                console.info(INDENT_3 + `Created teacher ${newTeacher.formattedName}`);
+                newTeachers.add(newTeacher);
             }
-
-            const matchingEurekaTeacher = eurekaTeachers.find(t => {
-                const firstNameMatch = t.name.first === newTeacher.firstName;
-                const lastNameMatch = t.name.last === newTeacher.lastName;
-                const honorificMatch = t.name.honorific === newTeacher.honorific;
-
-                return firstNameMatch && lastNameMatch && honorificMatch;
-            });
-            if (matchingEurekaTeacher) {
-                console.info(INDENT_3 + `Found matching teacher ${newTeacher.formattedName}`);
-                newTeacher.id = matchingEurekaTeacher.id;
-
-                actions.push([ActionType.CHANGE_TEACHER_ABSENCE, newTeacher]);
-                this.#teachers.set(matchingEurekaTeacher.id, newTeacher);
-                continue;
-            }
-
-            console.info(INDENT_3 + `Created teacher ${newTeacher.formattedName}`);
-            newTeachers.add(newTeacher);
+            console.info(INDENT_3 + `Created ${newTeachers.size} 'new' teachers and matched ${pendingRows.size - newTeachers.size} teachers`);
+    
+            const diffResolveTime = Date.now();
+    
+            console.info('\n');
+            console.log(INDENT + "To Eureka");
+            const actionResults = await this.doNonCreate(INDENT_2, actions);
+    
+            const newTeacherList = [...newTeachers.values()];
+            const createResults = await this.doCreate(INDENT_2, newTeacherList);
+    
+            this.logFailedActions(
+                INDENT_2,
+                { results: actionResults, actions },
+                { results: createResults, newTeachers: newTeacherList },
+            );
+    
+            const end = Date.now();
+    
+            const sheetFetchDuration = dataFetchTime - start;
+            const diffResolveDuration = diffResolveTime - dataFetchTime;
+            const eurekaSyncDuration = end - diffResolveTime;
+    
+            const totalDuration = end - start;
+    
+            console.log("\n\nSummary");
+            console.info(`Sync complete in ${totalDuration}ms (${sheetFetchDuration}ms data fetch, ${diffResolveDuration}ms diff resolve, ${eurekaSyncDuration}ms eureka sync)`);
+    
+            this.#lastSync = new Date(end);
+        } catch (e) {
+            console.error('Sync failed:', e);
         }
-        console.info(INDENT_3 + `Created ${newTeachers.size} 'new' teachers and matched ${pendingRows.size - newTeachers.size} teachers`);
-
-        const diffResolveTime = Date.now();
-
-        console.info('\n');
-        console.log(INDENT + "To Eureka");
-        const actionResults = await this.doNonCreate(INDENT_2, actions);
-
-        const newTeacherList = [...newTeachers.values()];
-        const createResults = await this.doCreate(INDENT_2, newTeacherList);
-
-        this.logFailedActions(
-            INDENT_2,
-            { results: actionResults, actions },
-            { results: createResults, newTeachers: newTeacherList },
-        );
-
-        const end = Date.now();
-
-        const sheetFetchDuration = dataFetchTime - start;
-        const diffResolveDuration = diffResolveTime - dataFetchTime;
-        const eurekaSyncDuration = end - diffResolveTime;
-
-        const totalDuration = end - start;
-
-        console.log("\n\nSummary");
-        console.info(`Sync complete in ${totalDuration}ms (${sheetFetchDuration}ms data fetch, ${diffResolveDuration}ms diff resolve, ${eurekaSyncDuration}ms eureka sync)`);
-
-        this.#lastSync = new Date(end);
     }
 }
