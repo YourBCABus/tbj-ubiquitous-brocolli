@@ -1,7 +1,12 @@
 import { createHash } from 'crypto';
 import express from 'express';
+import Logger from '../meta/logging';
 
-const setupExpressServer = (manualConfirm: () => Promise<void>, summary: () => Promise<string>) => {
+const setupExpressServer = (
+    manualConfirm: () => Promise<void>,
+    summary: () => Promise<string>,
+    logger: Logger,
+) => {
     const app = express();
     const port = process.env.PORT ?? "3000";
 
@@ -13,6 +18,8 @@ const setupExpressServer = (manualConfirm: () => Promise<void>, summary: () => P
     });
 
     app.put(`${baseUrl}/manual-confirm`, async (req, res) => {
+        logger.log('Got manual confirm req');
+
         const passedApiKey = req.header('X-Api-Key');
         const actualApiKey = process.env.API_KEY;
         if (!actualApiKey) {
@@ -41,6 +48,7 @@ const setupExpressServer = (manualConfirm: () => Promise<void>, summary: () => P
     });
 
     app.get(`${baseUrl}/sheet-summary`, async (_, res) => {
+        logger.log('Got sheet-summary req');
         try {
             res.send(await summary());
         } catch (e) {

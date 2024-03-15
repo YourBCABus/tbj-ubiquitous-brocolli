@@ -300,4 +300,8 @@ export default class BrocolliState {
         }
         return summary;
     }
+
+    public get lock() {
+        return this.#stateLock.then(() => void 0);
+    }
 }

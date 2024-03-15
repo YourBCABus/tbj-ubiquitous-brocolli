@@ -16,9 +16,10 @@ const main = async () => {
     setupExpressServer(
         async () => await state.sync(logger, new TimingCtx(), true),
         async () => {
-            await state.sync(logger, new TimingCtx(), false);
+            await state.lock;
             return state.summary;
         },
+        logger,
     );
 
     // Every 5 seconds, sync the state
