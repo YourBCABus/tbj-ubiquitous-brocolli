@@ -7,8 +7,9 @@ import { cwd as currDir } from 'process';
 import { authenticate } from '@google-cloud/local-auth';
 import { google, sheets_v4 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
-import EurekaContext from 'eureka';
-import GraphQLQuery from 'actions/types';
+import EurekaContext from './eureka';
+import GraphQLQuery from '../actions/types';
+import { createHash } from 'crypto';
 
 // If modifying these scopes, delete token.json.
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly'];
@@ -63,11 +64,16 @@ const saveCreds = async (client: OAuth2Client) => {
 
 
 export default class SheetContext {
+    private prevDataHash = '';
+    private lastDataUpdate = new Date(0);
+
+
     private constructor(
         private auth: OAuth2Client,
         private sheets: sheets_v4.Sheets,
         private sheetId: string,
     ) {}
+
 
     public static async create(sheetId: string): Promise<SheetContext> {
         const auth = await authorize();
@@ -83,7 +89,11 @@ export default class SheetContext {
             {}
         );
 
-        if (res.id) this.sheetId = res.id;
+
+        if (res.id) {
+            if (this.sheetId !== res.id) this.lastDataUpdate = new Date();
+            this.sheetId = res.id;
+        }
     }
 
     public async getSheetData(): Promise<string[][]> {
@@ -95,7 +105,20 @@ export default class SheetContext {
             range: "Teachers!A:ZZ"
         });
         const rawValues = response.data.values || [];
-        return rawValues.map(row => row.map(String));
+        const values = rawValues.map(row => row.map(String));
+
+        // Hashing the data to check if it has changed
+        const prevHash = this.prevDataHash;
+        this.prevDataHash = createHash('md5').update(JSON.stringify(values)).digest('hex');
+        if (this.prevDataHash !== prevHash) {
+            this.lastDataUpdate = new Date();
+        }
+
+        return values;
+    }
+
+    public get lastUpdate() {
+        return this.lastDataUpdate;
     }
 }
 // export default authorize;

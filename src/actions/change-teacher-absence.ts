@@ -1,5 +1,5 @@
-import TeacherEntry, { ALL_PERIODS, Period as PeriodEnum } from "../basic-structs";
-import EurekaContext from "../eureka";
+import TeacherEntry, { ALL_PERIODS, Period as PeriodEnum } from "../consts/basic-structs";
+import EurekaContext from "../logic/eureka";
 import GraphQLQuery, { Teacher, Period } from "./types";
 
 export const GET_PERIOD_IDS_QUERY = `

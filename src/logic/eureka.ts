@@ -1,5 +1,5 @@
 import { inspect } from "util";
-import GraphQLQuery, { Teacher } from "./actions/types";
+import GraphQLQuery, { Teacher } from "../actions/types";
 
 export default class EurekaContext {
     #clientId: string;
@@ -60,12 +60,22 @@ query GetTeachers {
             first
             last
         }
+        absence {
+            id
+            name
+        }
+        fullyAbsent
     }
 }
 `;
 
 type GetTeachersQuery = GraphQLQuery<{}, {
-    teachers: Teacher<"id" | "name", never, never, "honorific" | "first" | "last">[];
+    teachers: Teacher<
+        "id" | "name" | "absence" | "fullyAbsent",
+        "id" | "name",
+        never,
+        "honorific" | "first" | "last"
+    >[];
 }>;
 
 export type GetTeachersResult = Awaited<ReturnType<GetTeachersQuery>>["teachers"];

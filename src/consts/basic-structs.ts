@@ -1,5 +1,5 @@
 import { inspect } from "util";
-import { ActionType } from "./actions";
+import { ActionType } from "../actions";
 import COLS from "./rowlookup";
 
 export default class TeacherEntry {
@@ -32,7 +32,7 @@ export default class TeacherEntry {
     public static create(row: string[], rowIdx: number): TeacherEntry | null {
         const firstName = row[COLS.FIRST_NAME].trim();
         const lastName = row[COLS.LAST_NAME].trim();
-        const honorific = row[COLS.HONORIFIC].trim().replace(/\.$/, '').toLowerCase();
+        const honorific = row[COLS.HONORIFIC].trim().replace(/\./g, '').toLowerCase();
 
         if (!honorific || !lastName) return null;
 
@@ -46,10 +46,22 @@ export default class TeacherEntry {
 
         const firstName = row[COLS.FIRST_NAME].trim();
         const lastName = row[COLS.LAST_NAME].trim();
-        const honorific = row[COLS.HONORIFIC].trim().replace('.', '');
+        const honorific = row[COLS.HONORIFIC].trim().replace(/\./g, '').toLowerCase();
 
         
         if (firstName !== this.#firstName || lastName !== this.#lastName || honorific !== this.#honorific) {
+            console.log({
+                sheet: {
+                    firstName,
+                    lastName,
+                    honorific,
+                },
+                state: {
+                    firstName: this.#firstName,
+                    lastName: this.#lastName,
+                    honorific: this.#honorific,
+                },
+            });
             actions.push(ActionType.CHANGE_TEACHER_NAME);
         }
 
@@ -74,6 +86,14 @@ export default class TeacherEntry {
         return this.#absenceState.absentPeriod(period);
     }
 
+    public get prettyFullName(): string {
+        const honorific = this.#honorific
+            .split(' ')
+            .map(word => word[0].toUpperCase() + word.slice(1) + ".")
+            .join(' ');
+        
+        return `${honorific} ${this.#firstName} ${this.#lastName}`;
+    }
     public get formattedName(): string { return `${this.#honorific} ${this.#lastName}`; }
     public get honorific(): string { return this.#honorific; }
     public get firstName(): string { return this.#firstName; }
@@ -85,7 +105,7 @@ export default class TeacherEntry {
     public rowMatchScore(row: string[]): number {
         const firstName = row[COLS.FIRST_NAME];
         const lastName = row[COLS.LAST_NAME];
-        const honorific = row[COLS.HONORIFIC].trim().replace('.', '').toLowerCase();
+        const honorific = row[COLS.HONORIFIC].trim().replace(/\./g, '').toLowerCase();
 
         let score = 0;
 
@@ -102,6 +122,17 @@ export default class TeacherEntry {
     public rowMatchesLax(row: string[]): boolean {
         return this.rowMatchScore(row) >= 3;
     }
+
+    public revertToEureka({ absence, fullyAbsent, name }: {
+        absence: { name: string, id: string }[],
+        fullyAbsent: boolean,
+        name: { first: string, last: string, honorific: string },
+    }) {
+        this.#honorific = name.honorific.trim().replace(/\./g, '').toLowerCase();
+        this.#firstName = name.first.trim();
+        this.#lastName = name.last.trim();
+        this.#absenceState = AbsenceState.fromEureka(absence, fullyAbsent);
+    }
 }
 
 export abstract class AbsenceState {
@@ -113,6 +144,50 @@ export abstract class AbsenceState {
     
     abstract absentPeriod(period: Period): boolean;
     abstract get isFullyAbsent(): boolean;
+
+    public static fromEureka(
+        periods: { name: string, id: string }[],
+        fullyAbsent: boolean,
+    ) {
+        if (fullyAbsent) {
+            return new AbsentFullDay("");
+        }
+
+        const nameSet = new Set(periods.map(p => p.name));
+
+        const pairs = [
+            ["1", Period.P1],
+            ["IGS", Period.IGS],
+            ["2", Period.P2],
+            ["3", Period.P3],
+            ["4", Period.P4],
+            ["5", Period.P5],
+            ["6", Period.P6],
+            ["7", Period.P7],
+            ["8", Period.P8],
+            ["9", Period.P9],
+        ] as const;
+
+        const periodSet = new Set(
+            [...nameSet]
+                .flatMap(name => {
+                    const pair = pairs.find(
+                        ([namePiece]) => name
+                            .toLocaleLowerCase()
+                            .includes(namePiece.toLocaleLowerCase()),
+                    );
+                    return pair ? [pair[1]] : [];
+                })
+        )
+
+        // If no periods are absent, teacher is present (otherwise teacher is
+        // partially absent)
+        if (periodSet.size === 0) {
+            return new Present("");
+        } else {
+            return new AbsentPartialDay("", periodSet);
+        }
+    }
 
     public static create(row: string[]): AbsenceState {
         // const comments = row[COLS.COMMENTS];
@@ -203,6 +278,8 @@ export abstract class AbsenceState {
     }
 
     public get comments(): string { return this.#comments; }
+
+    public abstract get isAbsentAtAll(): boolean;
 }
 
 
@@ -213,6 +290,9 @@ export class AbsentFullDay extends AbsenceState {
 
     public absentPeriod(_: Period): boolean { return true; }
     public get isFullyAbsent(): boolean { return true; }
+
+    public get isAbsentAtAll(): boolean { return true; }
+    public toString() { return "out ALL DAY"; }
 }
 
 export class AbsentPartialDay extends AbsenceState {
@@ -236,6 +316,16 @@ export class AbsentPartialDay extends AbsenceState {
     [inspect.custom](): string {
         return `AbsentPartialDay< ${[...this.#periods].join(', ')} >`;
     }
+
+    public get isAbsentAtAll(): boolean { return true; }
+    public toString() {
+        const periods = [...this.#periods];
+        periods.sort((a, b) => ALL_PERIODS.indexOf(a) - ALL_PERIODS.indexOf(b));
+
+        const shortPeriods = periods.map(p => p.replace(/^Period /g, ""));
+
+        return `out ${shortPeriods.join(', ')}`;
+    }
 }
 
 export class Present extends AbsenceState {
@@ -245,6 +335,9 @@ export class Present extends AbsenceState {
 
     absentPeriod(_: Period): boolean { return false; }
     get isFullyAbsent(): boolean { return false; }
+
+    public get isAbsentAtAll(): boolean { return false; }
+    public toString() { return "present"; }
 }
 
 

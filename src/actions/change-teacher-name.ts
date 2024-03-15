@@ -1,5 +1,5 @@
-import TeacherEntry from "../basic-structs";
-import EurekaContext from "../eureka";
+import TeacherEntry from "../consts/basic-structs";
+import EurekaContext from "../logic/eureka";
 import GraphQLQuery, { GraphQlTeacherName, Teacher } from "./types";
 
 export const QUERY = `

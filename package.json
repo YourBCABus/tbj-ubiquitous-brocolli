@@ -5,10 +5,8 @@
   "main": "src/index.ts",
   "scripts": {
     "exec-dev": "ts-node src/index.ts",
-
     "build": "tsc",
     "start": "node dist/index.js",
-
     "pm2-up": "npm run build && pm2 start dist/index.js --name tbj-ubiquitous-brocolli",
     "pm2-down": "pm2 stop tbj-ubiquitous-brocolli"
   },
@@ -24,11 +22,15 @@
   "homepage": "https://github.com/YourBCABus/tbj-ubiquitous-brocolli#readme",
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.0",
-    "@types/node": "^20.6.0",
     "dotenv": "^16.3.1",
+    "express": "^4.18.3",
     "google-auth-library": "^9.0.0",
     "googleapis": "^126.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.2.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.28"
   }
 }
