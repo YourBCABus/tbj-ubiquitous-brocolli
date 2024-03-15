@@ -3,7 +3,7 @@ import express from 'express';
 
 const setupExpressServer = (manualConfirm: () => Promise<void>, summary: () => Promise<string>) => {
     const app = express();
-    const port = 3000;
+    const port = process.env.PORT ?? "3000";
 
     const baseUrl = (process.env.BASE_URL || '/passthrough/broccoli').replace(/\/$/g, '');
 
@@ -49,7 +49,7 @@ const setupExpressServer = (manualConfirm: () => Promise<void>, summary: () => P
     });
 
     app.listen(port, () => {
-        console.log(`Server listening at http://localhost:${port}`);
+        console.log(`Server listening at http://0.0.0.0:${port}`);
     });
 };
 
