@@ -25,8 +25,9 @@ const COLS = {
         P7: ALPHABET.indexOf('T'),
         P8: ALPHABET.indexOf('U'),
         P9: ALPHABET.indexOf('V'),
-    }
+    },
 
+    COMMENTS: ALPHABET.indexOf('X'),
 };
 
 

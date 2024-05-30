@@ -12,12 +12,15 @@ query GetPeriodIds {
 `;
 
 export const QUERY = `
-mutation ChangeTeacherAbsence($id: UUID!, $periods: [UUID!]!, $fullyAbsent: Boolean) {
+mutation ChangeTeacherAbsence($id: UUID!, $periods: [UUID!]!, $fullyAbsent: Boolean, $comments: String) {
     teacher: updateTeacherAbsence(id: $id, periods: $periods, fullyAbsent: $fullyAbsent) {
         id
         name {
             formatted(formatStyle: HONORIFIC_LAST)
         }
+    }
+    commentUpdate: updateTeacherComments(id: $id, comments: $comments) {
+        id
     }
 }
 `;
@@ -51,6 +54,7 @@ const changeTeacherAbsence = async (ctx: EurekaContext, teacher: TeacherEntry): 
         id: teacherId,
         periods,
         fullyAbsent: teacher.absenceState.isFullyAbsent,
+        comments: teacher.comments,
     };
 
 

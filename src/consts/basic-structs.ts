@@ -11,6 +11,7 @@ export default class TeacherEntry {
     #lastName: string;
 
     #absenceState: AbsenceState;
+    #comments: string | null;
 
     private constructor(
         home: number,
@@ -27,6 +28,7 @@ export default class TeacherEntry {
         this.#lastName = lastName;
 
         this.#absenceState = absenceState;
+        this.#comments = null;
     }
 
     public static create(row: string[], rowIdx: number): TeacherEntry | null {
@@ -68,10 +70,16 @@ export default class TeacherEntry {
         const absenceState = AbsenceState.create(row);
         actions.push(...AbsenceState.diff(this.#absenceState, absenceState));
 
+        const comments = row[COLS.COMMENTS].trim() || null;
+        if (comments !== this.#comments && !actions.includes(ActionType.CHANGE_TEACHER_ABSENCE)) {
+            actions.push(ActionType.CHANGE_TEACHER_ABSENCE);
+        }
+
         this.#firstName = firstName;
         this.#lastName = lastName;
         this.#honorific = honorific;
         this.#absenceState = absenceState;
+        this.#comments = comments;
 
         return actions;
     }
@@ -100,7 +108,7 @@ export default class TeacherEntry {
     public get lastName(): string { return this.#lastName; }
 
     public get absenceState(): AbsenceState { return this.#absenceState; }
-    public get comments(): string { return this.#absenceState.comments; }
+    public get comments(): string | null { return this.#comments; }
 
     public rowMatchScore(row: string[]): number {
         const firstName = row[COLS.FIRST_NAME];
@@ -136,11 +144,7 @@ export default class TeacherEntry {
 }
 
 export abstract class AbsenceState {
-    #comments: string;
-
-    protected constructor(comments: string) {
-        this.#comments = comments;
-    }
+    protected constructor() {}
     
     abstract absentPeriod(period: Period): boolean;
     abstract get isFullyAbsent(): boolean;
@@ -150,7 +154,7 @@ export abstract class AbsenceState {
         fullyAbsent: boolean,
     ) {
         if (fullyAbsent) {
-            return new AbsentFullDay("");
+            return new AbsentFullDay();
         }
 
         const nameSet = new Set(periods.map(p => p.name));
@@ -183,23 +187,19 @@ export abstract class AbsenceState {
         // If no periods are absent, teacher is present (otherwise teacher is
         // partially absent)
         if (periodSet.size === 0) {
-            return new Present("");
+            return new Present();
         } else {
-            return new AbsentPartialDay("", periodSet);
+            return new AbsentPartialDay(periodSet);
         }
     }
 
     public static create(row: string[]): AbsenceState {
-        // const comments = row[COLS.COMMENTS];
-        const comments = "";
-        
-
         const checked = (idx: number) => (row[idx] ?? "").toLowerCase() === 'true';
 
         // If the full day column is checked, exit early with an AbsentFullDay
         // status.
         if (checked(COLS.FULL_DAY)) {
-            return new AbsentFullDay(comments);
+            return new AbsentFullDay();
         }
 
 
@@ -240,9 +240,9 @@ export abstract class AbsenceState {
         // If no periods are absent, teacher is present (otherwise teacher is
         // partially absent)
         if (periods.size === 0) {
-            return new Present(comments);
+            return new Present();
         } else {
-            return new AbsentPartialDay(comments, periods);
+            return new AbsentPartialDay(periods);
         }
     }
 
@@ -277,15 +277,13 @@ export abstract class AbsenceState {
         return actions;
     }
 
-    public get comments(): string { return this.#comments; }
-
     public abstract get isAbsentAtAll(): boolean;
 }
 
 
 export class AbsentFullDay extends AbsenceState {
-    public constructor(comments: string) {
-        super(comments);
+    public constructor() {
+        super();
     }
 
     public absentPeriod(_: Period): boolean { return true; }
@@ -298,8 +296,8 @@ export class AbsentFullDay extends AbsenceState {
 export class AbsentPartialDay extends AbsenceState {
     #periods: Set<Period>;
 
-    public constructor(comments: string, periods: Set<Period>) {
-        super(comments);
+    public constructor(periods: Set<Period>) {
+        super();
         this.#periods = periods;
     }
 
@@ -329,8 +327,8 @@ export class AbsentPartialDay extends AbsenceState {
 }
 
 export class Present extends AbsenceState {
-    public constructor(comments: string) {
-        super(comments);
+    public constructor() {
+        super();
     }
 
     absentPeriod(_: Period): boolean { return false; }
