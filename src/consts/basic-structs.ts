@@ -70,7 +70,7 @@ export default class TeacherEntry {
         const absenceState = AbsenceState.create(row);
         actions.push(...AbsenceState.diff(this.#absenceState, absenceState));
 
-        const comments = row[COLS.COMMENTS].trim() || null;
+        const comments = row[COLS.COMMENTS]?.trim() || null;
         if (comments !== this.#comments && !actions.includes(ActionType.CHANGE_TEACHER_ABSENCE)) {
             actions.push(ActionType.CHANGE_TEACHER_ABSENCE);
         }
